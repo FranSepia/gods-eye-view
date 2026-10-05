@@ -59,6 +59,9 @@ import {
   DELDOT_CCTV_URL,
   DEFAULT_DELDOT_MAX_SOURCES,
   DELDOT_ANCHORS,
+  DEFAULT_MEXICO_SOURCE_FILE,
+  DEFAULT_MEXICO_MAX_SOURCES,
+  MEXICO_ANCHORS,
 } from './constants.js';
 import {
   toFiniteNumber,
@@ -76,6 +79,7 @@ import {
   isLikelyTexasCoordinate,
   isLikelyNswCoordinate,
   isLikelyCalgaryCoordinate,
+  isLikelyMexicoCoordinate,
   cameraDisplayCode,
   rowArrayToObject,
   prioritizeSources,
@@ -1700,4 +1704,91 @@ export async function loadDelDOTSourcesFromOpenData() {
     );
     return [];
   }
+}
+
+/**
+ * Load the Mexico surveillance-camera catalog (pose only, OpenStreetMap).
+ *
+ * This is the one pack that registers cameras with NO upstream URL, and that
+ * is the honest shape of the data: no Mexican authority publishes camera
+ * video, so a `url` here would promise a feed that does not exist. The proxy
+ * already handles a URL-less camera — the frame route falls through to Street
+ * View at the camera's own position and facing, then to the synthetic frame —
+ * so the layer shows what each camera overlooks without inventing a stream.
+ *
+ * Rebuild the catalog with `node scripts/build-mexico-cctv.mjs`.
+ *
+ * @param {{sourceRoot?: string}} [options]
+ * @returns {Array<object>} Normalized camera sources, or [] when unavailable.
+ */
+export function loadMexicoSourcesFromCatalog({
+  sourceRoot = process.cwd(),
+} = {}) {
+  const sourceFile =
+    process.env.CCTV_MEXICO_SOURCES_FILE || DEFAULT_MEXICO_SOURCE_FILE;
+  const resolved = path.isAbsolute(sourceFile)
+    ? sourceFile
+    : path.resolve(sourceRoot, sourceFile);
+  let rows = [];
+  try {
+    if (!fs.existsSync(resolved)) {
+      console.warn('[CCTV] Mexico source file missing:', resolved);
+      return [];
+    }
+    const parsed = JSON.parse(fs.readFileSync(resolved, 'utf8'));
+    rows = Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.warn(
+      '[CCTV] Mexico source file read error:',
+      error?.message || error,
+    );
+    return [];
+  }
+
+  const cameras = [];
+  for (const item of rows) {
+    if (!item || typeof item !== 'object') continue;
+    const cameraId = typeof item.id === 'string' ? item.id.trim() : '';
+    if (!cameraId) continue;
+    const lat = typeof item.lat === 'number' ? item.lat : NaN;
+    const lon = typeof item.lon === 'number' ? item.lon : NaN;
+    if (!isLikelyMexicoCoordinate(lat, lon)) continue;
+
+    // Only about a sixth of these nodes were surveyed with a facing. The rest
+    // get the same deterministic placeholder every other pack uses, flagged
+    // 'low' so the CAL badge tells the truth about it.
+    const surveyedHeading = toFiniteNumber(item.headingDeg, NaN);
+    const hasHeading = Number.isFinite(surveyedHeading);
+    cameras.push({
+      ...item,
+      id: cameraId,
+      lat,
+      lon,
+      headingDeg: hasHeading
+        ? ((surveyedHeading % 360) + 360) % 360
+        : fallbackHeadingFromId(cameraId),
+      headingConfidence: hasHeading ? 'high' : 'low',
+      // No feed exists; stated explicitly so a future edit to the catalog
+      // cannot smuggle an upstream URL into this pack unreviewed.
+      url: '',
+      snapshotUrl: '',
+      feedType: 'image',
+      sourceKind: 'osm-mx-surveillance',
+    });
+  }
+
+  const unique = Array.from(
+    new Map(cameras.map((camera) => [camera.id, camera])).values(),
+  );
+  const maxRaw = Number(
+    process.env.CCTV_MEXICO_MAX_SOURCES || DEFAULT_MEXICO_MAX_SOURCES,
+  );
+  const maxCount = Number.isFinite(maxRaw)
+    ? Math.max(8, Math.min(1500, Math.floor(maxRaw)))
+    : DEFAULT_MEXICO_MAX_SOURCES;
+  const prioritized = prioritizeSources(unique, maxCount, MEXICO_ANCHORS);
+  console.log(
+    `[CCTV] Loaded Mexico OSM camera sources: ${unique.length} (using nearest ${prioritized.length})`,
+  );
+  return prioritized;
 }

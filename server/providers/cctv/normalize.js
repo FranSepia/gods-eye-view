@@ -356,6 +356,22 @@ export function isLikelyNswCoordinate(lat, lon) {
   );
 }
 
+/**
+ * Mexico's land extent, generously boxed (Tijuana to Chetumal, Chiapas to the
+ * Sonora border). This bbox also covers south Texas and San Diego, which is
+ * fine here: the Mexico catalog is built from a polygon-accurate OSM query, so
+ * this check only has to catch a swapped axis or a stale hand-edited row.
+ */
+export function isLikelyMexicoCoordinate(lat, lon) {
+  return (
+    isPlausibleLatLon(lat, lon) &&
+    lat >= 14.3 &&
+    lat <= 32.8 &&
+    lon >= -118.6 &&
+    lon <= -86.5
+  );
+}
+
 /** Calgary's municipal extent, with slack for the ring road. */
 export function isLikelyCalgaryCoordinate(lat, lon) {
   return (

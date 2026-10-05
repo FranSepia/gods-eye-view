@@ -162,7 +162,10 @@ export const FINLAND_ANCHORS = [
   { lat: 66.5039, lon: 25.7294 }, // Rovaniemi
 ];
 /** Global cap on total CCTV sources served by the proxy: the default per-pack
- * caps summed (Austin 250 + Caltrans 300 + TfL 250 + DriveBC 250). */
+ * caps summed (Austin 250 + Caltrans 300 + TfL 250 + DriveBC 250). Adding a
+ * pack does NOT raise this — the packs share it round-robin (cap.js) so no
+ * region is dropped, and cctvCalgary/cctvMexico tests pin it against exactly
+ * that temptation. */
 /** DriveBC highway cameras (British Columbia): the keyless camera list served by
  * the DriveBC.ca site (github.com/bcgov/DriveBC.ca). The DataBC HighwayCams CSV
  * lists the same cameras but still carries retired images.drivebc.ca frame URLs,
@@ -236,6 +239,38 @@ export const CALGARY_DOWNTOWN = { lat: 51.0461, lon: -114.0626 };
  * body cannot be buffered without limit. */
 export const CALGARY_MAX_CATALOG_BYTES = 4 * 1024 * 1024;
 
+/**
+ * Mexico surveillance cameras: POSE ONLY, from OpenStreetMap
+ * (`man_made=surveillance`), rebuilt by `scripts/build-mexico-cctv.mjs`.
+ *
+ * Unlike every other pack here, this one registers no feed URL, because none
+ * exists. Mexico City's C5 runs on the order of 100,000 cameras and streams
+ * none of them publicly; the city's open-data portal publishes the C5/C2
+ * command-centre addresses and per-colonia counts, never a per-camera
+ * coordinate. The surveyed OSM nodes are the only public per-camera positions
+ * in the country, so these cameras resolve through the proxy's Street View
+ * fallback (what the camera looks at) or the synthetic frame.
+ */
+export const DEFAULT_MEXICO_SOURCE_FILE = 'config/cctv_sources.mexico.json';
+export const DEFAULT_MEXICO_MAX_SOURCES = 700;
+/**
+ * Prioritization anchors: the metros the catalog actually covers, densest
+ * first. Cameras rank by distance to the NEAREST anchor, so a cap keeps the
+ * Valle de México core and Ciudad Juárez rather than thinning one of them
+ * away. Ciudad de México leads because the layer's reason to exist is the
+ * capital.
+ */
+export const MEXICO_ANCHORS = [
+  { lat: 19.4326, lon: -99.1332 }, // Ciudad de México (Zócalo)
+  { lat: 19.4785, lon: -99.2396 }, // Naucalpan
+  { lat: 19.6097, lon: -99.06 }, // Ecatepec
+  { lat: 31.6904, lon: -106.4245 }, // Ciudad Juárez
+  { lat: 18.9242, lon: -99.2216 }, // Cuernavaca
+  { lat: 19.2826, lon: -99.6557 }, // Toluca
+  { lat: 20.1011, lon: -98.7591 }, // Pachuca
+  { lat: 20.6597, lon: -103.3496 }, // Guadalajara
+  { lat: 18.8512, lon: -97.0999 }, // Orizaba
+];
 /** DelDOT CCTV: one keyless statewide JSON catalog; live video via RTMP-over-HTTP (rtmpt:80). */
 export const DELDOT_CCTV_URL = 'https://tmc.deldot.gov/json/videocamera.json';
 export const DEFAULT_DELDOT_MAX_SOURCES = 300;

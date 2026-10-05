@@ -338,6 +338,18 @@ export const DATA_CREDITS = [
     html: 'Webcam (Warendorf): <a href="https://www.warendorf.de/" target="_blank" rel="noopener">Stadt Warendorf</a> (courtesy)',
   },
   {
+    // The ODbL attribution itself rides on the generic OSM_CREDIT entry below,
+    // which is always registered — repeating the copyright link per OSM-derived
+    // layer is what dataCredits.test.mjs forbids. This entry exists to say what
+    // the Mexico pack is, because it is the one camera source with no feed.
+    key: 'mexico-osm-cctv',
+    html:
+      'Camera positions (Mexico): surveyed into OpenStreetMap as ' +
+      '<a href="https://wiki.openstreetmap.org/wiki/Tag:man_made%3Dsurveillance" target="_blank" rel="noopener">man_made=surveillance</a> ' +
+      '(<a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">ODbL</a>) — ' +
+      'positions and facings only; no Mexican authority publishes these camera feeds',
+  },
+  {
     key: 'nsw-cctv',
     html:
       'CCTV cameras &amp; frames (New South Wales): ' +
