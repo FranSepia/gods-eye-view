@@ -2,6 +2,7 @@ import * as Cesium from 'cesium';
 import { viewshedColors, cameraHue } from '../../data/cctvViewshed.js';
 import { CCTV_OVERLAY_SOURCE_ID } from '../../data/cctvCards.js';
 import { GIZMO_ID_PREFIX } from '../../data/cctvGizmo.js';
+import { createStreetViewMeter } from './streetViewMeter.js';
 import {
   GROUND_PRIOR_INIT_WAIT_MS,
   CAMERA_ICON,
@@ -339,6 +340,10 @@ export function createLifecycle({
      */
     enable() {
       layerState._enabled = true;
+      // Street View is billed per frame request, and frames only flow while
+      // this layer is on — so the spend meter runs exactly as long as the
+      // spending can happen.
+      layerState._streetViewMeter ||= createStreetViewMeter();
       if (
         layerState._records.some(
           (record) => record.camera.cityId === 'warendorf',
@@ -393,6 +398,10 @@ export function createLifecycle({
     disable() {
       services.credits?.hideOsmCredit?.(layerState._viewer, 'cctv');
       layerState._enabled = false;
+      // stop() also clears the readout: no frames flow while the layer is off,
+      // so a lingering count would read as live spending.
+      layerState._streetViewMeter?.stop();
+      layerState._streetViewMeter = null;
       unregisterPickOwner('cctv');
       // ADJUST mode does not survive a layer toggle — predictable re-entry.
       layerState._calibrationMode = false;

@@ -18,6 +18,7 @@ import {
 } from './cctv/constants.js';
 import { sanitizeCctvRangeHeader } from './cctv/range.js';
 import { createHlsPuller } from './cctv/stream.js';
+import { createStreetViewUsage } from './cctv/streetViewUsage.js';
 import { googleServerApiKey } from './places/google-key.js';
 export { CCTV_FRAME_FETCH_TIMEOUT_MS, fetchCctvImageFromUpstream };
 /**
@@ -27,6 +28,7 @@ export { CCTV_FRAME_FETCH_TIMEOUT_MS, fetchCctvImageFromUpstream };
  * Endpoints:
  *   GET /api/cctv/sources        — list all registered camera sources
  *   GET /api/cctv/health         — per-camera health/status report
+ *   GET /api/cctv/streetview-usage — billable Street View calls spent today/this month
  *   GET /api/cctv/stream/:id     — stream info (feedType, URLs) for a camera
  *   GET /api/cctv/media/:id      — proxy live video/image media from upstream
  *   GET /api/cctv/frame/:id      — single frame with fallback chain
@@ -43,6 +45,8 @@ export function cctvProxy({ sourceRoot = process.cwd() } = {}) {
   const HEALTH_MAX_ENTRIES = CCTV_MAX_SOURCES_CEILING;
   /** Live HLS strategies (see ./cctv/stream.js). Shared across dev and preview. */
   const puller = createHlsPuller();
+  /** Street View spend meter + daily guard (see ./cctv/streetViewUsage.js). */
+  const streetViewUsage = createStreetViewUsage();
 
   /** Update the health entry for a camera, evicting the oldest entry if at capacity. */
   const setHealth = (cameraId, patch) => {
@@ -92,6 +96,12 @@ export function cctvProxy({ sourceRoot = process.cwd() } = {}) {
     const streetViewKey = googleServerApiKey();
     if (!streetViewKey || !Number.isFinite(lat) || !Number.isFinite(lon))
       return null;
+    // The spend guard sits ahead of the request, not after it: once today's
+    // cap is reached the call is simply not made, and the caller falls through
+    // to the synthetic frame. A camera layer left open overnight therefore
+    // cannot run a bill past the free tier.
+    if (!streetViewUsage.allow()) return null;
+    streetViewUsage.record();
     try {
       const sv = new URL('https://maps.googleapis.com/maps/api/streetview');
       sv.searchParams.set('size', '960x540');
@@ -173,6 +183,15 @@ export function cctvProxy({ sourceRoot = process.cwd() } = {}) {
             'Cache-Control': 'no-store',
           });
           res.end(JSON.stringify(body));
+          return;
+        }
+
+        if (url.pathname === '/streetview-usage') {
+          res.writeHead(200, {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-store',
+          });
+          res.end(JSON.stringify(streetViewUsage.snapshot()));
           return;
         }
 

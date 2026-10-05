@@ -211,6 +211,27 @@
   opacity: 0.95;
 }
 
+/* Street View spend meter. Quiet while usage is ordinary, amber as the daily
+   cap approaches, red once the guard has stopped spending for the day. */
+.hud-streetview {
+  margin-top: 6px;
+  opacity: 0.64;
+}
+
+.hud-streetview.warn {
+  color: #f0a63c;
+  opacity: 0.95;
+}
+
+.hud-streetview.capped {
+  color: #ff6b5e;
+  opacity: 1;
+}
+
+.hud-streetview[hidden] {
+  display: none;
+}
+
 .hud-classification {
   font-size: 12px;
   letter-spacing: 2.5px;
